@@ -1,10 +1,10 @@
 # KudoMan
 [GPL-3.0-or-later](LICENSE)  
-KudoMan is a script designed to periodically fetch, log, and visualize Kudos from the Stable Horde API.
+KudoMan is a script designed to fetch, log, and visualize Kudos from the [Stable Horde API](https://aihorde.net/).
 
 
 > [!WARNING]
-> This script has only been tested on Linux. It has been written to be cross-platform, but no idea if it works on Windows or MacOS. 
+> This script has only been tested on Linux. It has been written to be cross-platform, but I no idea if it works on Windows or MacOS. 
 
 ## Features
 
@@ -18,32 +18,32 @@ KudoMan is a script designed to periodically fetch, log, and visualize Kudos fro
 ## Requirements
 
 - Python 3.x
-- package requirements in `requirements.txt`
+- Package requirements in `requirements.txt`
 
 ## Installation
 
 1. **Clone the repository:**
 
-    ```bash
-    git clone https://github.com/Unit1208/KudoMan.git
-    cd KudoMan
-    ```
+```bash
+git clone https://github.com/Unit1208/KudoMan.git
+cd KudoMan
+```
 
 2. **Install the required Python packages:**
 
-    ```bash
-    python -m venv venv
-    source venv/bin/activate 
-    pip install -r requirements.txt
-    ```
+```bash
+python -m venv venv
+source venv/bin/activate 
+pip install -r requirements.txt
+```
 
 3. **Set up the environment file:**
 
-    Create a `.env` file in the root directory and add your API key:
+Create a `.env` file in the root directory and add your API key:
 
-    ```plaintext
-    API_KEY=your_api_key_here
-    ```
+```plaintext
+API_KEY=your_api_key_here
+```
 
 ## Usage
 
