@@ -1,0 +1,7 @@
+requests
+matplotlib
+pandas
+python-dotenv
+psutil
+coloredlogs
+colorama

@@ -1,0 +1,9 @@
+# Environment variables
+.env
+# output
+out.csv
+out.png
+# backups
+bak.d/
+#venv
+venv/
