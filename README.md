@@ -1,5 +1,5 @@
 # KudoMan
-[GPL-3.0-or-later](LICENSE)
+[GPL-3.0-or-later](LICENSE)  
 KudoMan is a script designed to periodically fetch, log, and visualize Kudos from the Stable Horde API.
 
 
