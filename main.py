@@ -11,9 +11,11 @@ import psutil
 import coloredlogs
 import gzip
 
+dotenv.load_dotenv()
+
 # Setup logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level="DEBUG", logger=logger)
+coloredlogs.install(level="INFO", logger=logger)
 
 # Cross-platform path handling
 LOCKFILE = Path.cwd() / ".kudolock"
@@ -28,22 +30,33 @@ def doexit(code=1):
     exit(code)
 
 
-def probably_didnt_delete():
+def is_lockfile_stale():
     """Check if the system probably didn't delete the lockfile."""
     with open(LOCKFILE, "r") as f:
-        lstart = float(f.read().split(",")[1])
+        llock = f.read().split(",")
+        lstart = float(llock[1])
+        lpid = float(lpid[0])
+
     # If we've rebooted since the lockfile was created, it's probably a stale lockfile.
-    return psutil.boot_time() < (time.time() - lstart)
+    rebooted = psutil.boot_time() < (time.time() - lstart)
+    if rebooted:
+        return True
+
+    lproc = psutil.Process(lpid)
+    if lproc.is_running():
+        # if it's runnning in a different directory than the current one, it's probably not this program. This isn't perfect, but it might help.
+        return not (Path.cwd()).resolve().samefile(lproc.cwd())
+    return False
 
 
 def setup_lockfile():
     """Setup the lockfile and handle stale lockfiles."""
     if LOCKFILE.exists():
-        if probably_didnt_delete():
+        if is_lockfile_stale():
             LOCKFILE.unlink()
         else:
             logger.warning(
-                f"Another instance of Kudoman is probably running! Please stop the other instance to start a new one. If you are sure there is not, you may remove {LOCKFILE}"
+                f"Another instance of KudoMan is probably running! Please stop the other instance to start a new one. If you are sure there is not, you may remove {LOCKFILE}"
             )
             with open(LOCKFILE, "rt") as f:
                 values = f.read().split(",")
@@ -59,7 +72,6 @@ def setup_lockfile():
 
 def load_api_key():
     """Load the API key from the environment file."""
-    dotenv.load_dotenv()
     api_key = os.getenv("API_KEY")
     if not api_key:
         if not ENV_FILE.exists():
