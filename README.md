@@ -18,16 +18,7 @@ KudoMan is a script designed to periodically fetch, log, and visualize Kudos fro
 ## Requirements
 
 - Python 3.x
-- Required Python packages (listed in `requirements.txt`):
-  - `datetime`
-  - `requests`
-  - `matplotlib`
-  - `pandas`
-  - `dotenv`
-  - `logging`
-  - `coloredlogs`
-  - `psutil`
-  - `gzip`
+- package requirements in `requirements.txt`
 
 ## Installation
 
