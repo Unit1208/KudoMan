@@ -1,5 +1,7 @@
 # Environment variables
 .env
+# Lockfile
+.kudolock
 # output
 out.csv
 out.png

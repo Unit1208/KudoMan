@@ -9,6 +9,7 @@ import dotenv
 import logging
 import psutil
 import coloredlogs
+import gzip
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -77,9 +78,13 @@ def setup_backup_dir():
     if not BACKUP_DIR.exists():
         logger.info("No backup folder, creating bak.d")
         BACKUP_DIR.mkdir()
-    backups = sorted(BACKUP_DIR.iterdir())
+    backups = sorted(
+        BACKUP_DIR.iterdir(), key=lambda x: x.stat().st_ctime, reverse=True
+    )
+
+    # Keep only the 10 most recent backups
     if len(backups) > 10:
-        for old_backup in backups[:-10]:
+        for old_backup in backups[10:]:
             logger.info(f"Removing old backup: {old_backup}")
             old_backup.unlink()
 
@@ -94,9 +99,9 @@ def create_output_file():
 
 def backup_output_file():
     """Backup the current output CSV file."""
-    backup_file = BACKUP_DIR / f"out-{int(time.time())}.csv"
-    with backup_file.open("wt") as o, OUTPUT_FILE.open("rt") as i:
-        o.write(i.read())
+    backup_file = BACKUP_DIR / f"out-{int(time.time())}.csv.gz"
+    with gzip.GzipFile(backup_file, "wb") as o, OUTPUT_FILE.open("rt") as i:
+        o.write(i.read().encode("utf-8"))
 
 
 def fetch_kudos(api_key):
@@ -118,18 +123,26 @@ def log_kudos(kudos):
 
 def plot_kudos():
     """Plot kudos over time."""
+    # Load dataframe
     df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
+    # Get time and Kudos
     t = df["Time"]
     ku = df["Kudos"]
+    # Calculate the time as being relative to the first measurement
     tn = t.to_numpy() - t.to_numpy()[0]
+    # Make a figure
     fig, ax = plt.subplots()
+    # Plot the data
     ax.plot(tn, ku)
+    # Set labels, etc
     ax.set(
         xlabel="Time (Unix seconds)",
         ylabel="Kudos",
         title=f"Kudos plot ({int(ku.iloc[-1])}@{int(time.time())})",
     )
+    # Turn on grid
     ax.grid()
+    # Save and close figure
     fig.savefig("out.png")
     plt.close(fig)
 
