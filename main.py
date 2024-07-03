@@ -124,7 +124,7 @@ def create_output_file():
     if not OUTPUT_FILE.exists():
         logger.info("No output file, creating out.csv")
         with open(OUTPUT_FILE, "wt") as f:
-            f.write("Time,Kudos")
+            f.write("Time,Kudos\n")
 
 
 def backup_output_file():
