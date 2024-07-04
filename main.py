@@ -33,6 +33,10 @@ import gzip
 
 dotenv.load_dotenv()
 
+LOGLEVEL = os.getenv("LOGLEVEL", "INFO")
+
+coloredlogs.install(level=LOGLEVEL, logger=logger)
+
 # Setup logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="INFO", logger=logger)
@@ -75,7 +79,7 @@ def setup_lockfile():
         if is_lockfile_stale():
             LOCKFILE.unlink()
         else:
-            logger.warning(
+            logger.error(
                 f"Another instance of KudoMan is probably running! Please stop the other instance to start a new one. If you are sure there is not, you may remove {LOCKFILE}"
             )
             with open(LOCKFILE, "rt") as f:
@@ -209,6 +213,17 @@ def plot_kudos():
 def main():
     """Main function to run the script."""
     setup_lockfile()
+    TIME = int(os.getenv("REQTIME", "60"))
+    # fast and lazy random numbers. Not good, mind you. But good enough. Plus, it avoids having to pull in random just for a joke.
+    if TIME < 0 and int(time.time() * 3252 + 6294) % 6 == 0:
+        logger.info(f"How do you expect the kudos to update every {TIME} seconds?")
+    if TIME < 30:
+        logger.warning(
+            "Time is < 30 seconds. This is a waste of server resources, kudos will not be updated this fast. Time will be clamped to a minimum of 30 seconds."
+        )
+        TIME = 30
+    logger.info(f"Fetching every {TIME} seconds")
+
     api_key = load_api_key()
     setup_backup_dir()
     create_output_file()
@@ -228,7 +243,7 @@ def main():
         except Exception as e:
             logger.warning(f"Unexpected exception: {e}")
         try:
-            time.sleep(60)
+            time.sleep(TIME)
         except KeyboardInterrupt:
             logger.info("Removing lockfile during delay, then exiting")
             doexit(1)
