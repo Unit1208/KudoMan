@@ -53,7 +53,7 @@ def is_lockfile_stale():
     with open(LOCKFILE, "r") as f:
         llock = f.read().split(",")
         lstart = float(llock[1])
-        lpid = float(lpid[0])
+        lpid = float(llock[0])
 
     # If we've rebooted since the lockfile was created, it's probably a stale lockfile.
     rebooted = psutil.boot_time() < (time.time() - lstart)
