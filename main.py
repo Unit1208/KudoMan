@@ -35,11 +35,11 @@ dotenv.load_dotenv()
 
 LOGLEVEL = os.getenv("LOGLEVEL", "INFO")
 
-coloredlogs.install(level=LOGLEVEL, logger=logger)
 
 # Setup logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level="INFO", logger=logger)
+coloredlogs.install(level=LOGLEVEL, logger=logger)
+
 
 # Cross-platform path handling
 LOCKFILE = Path.cwd() / ".kudolock"
@@ -157,6 +157,49 @@ def log_kudos(kudos):
         logger.info(f"{int(kudos)} Kudos")
 
 
+def is_truthy(v: str):
+    """Return if a string probably represents a truthy value"""
+    lst = v.lower()
+    if lst == "false":
+        return False
+    if lst == "true":
+        return True
+    lst0 = lst[0]
+    if lst0 in ["y", "t", "1"]:
+        return True
+    if lst0 in ["n", "f", "0"]:
+        return False
+
+    return -1
+
+
+def warn_wrong_value(key: str, desc: str, value: str, default: str):
+    logger.warning(
+        f"{desc} ({key}) key is of unknown truthyness ({value}). Please use True or False. Defaulting to {default}"
+    )
+
+
+def get_plot_params():
+    SHOW_MA = os.getenv("SHOWMA", "True")
+    SHOW_D1 = os.getenv("SHOWD1", "True")
+    SHOW_MAD1 = os.getenv("SHOWMAD1", "True")
+    SHOW_MAT = is_truthy(SHOW_MA)
+    if SHOW_MAT == -1:
+        warn_wrong_value("Show moving average", "SHOWMA", SHOW_MA, "True")
+        return True
+    SHOW_D1T = is_truthy(SHOW_D1)
+    if SHOW_D1T == -1:
+        warn_wrong_value("Show first difference", "SHOWD1", SHOW_D1, "True")
+        SHOW_D1T = True
+    SHOW_MAD1T = is_truthy(SHOW_MAD1)
+    if SHOW_MAD1T == -1:
+        warn_wrong_value(
+            "Show moving average first difference", "SHOWMAD1", SHOW_MAD1, "True"
+        )
+        SHOW_MAD1T = True
+    return SHOW_MAT, SHOW_D1T, SHOW_MAD1T
+
+
 def update_secondary_stats():
     df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
     # Average over 2 days (24 hours * 60 minutes * 2 days)
@@ -164,11 +207,10 @@ def update_secondary_stats():
     df["D1"] = df["Kudos"].diff()
     # Average over 15 minutes
     df["MAD1"] = df["D1"].rolling(window=15, min_periods=0).mean()
-
     df.to_csv(OUTPUT_FILE, index=False)
 
 
-def plot_kudos():
+def plot_kudos(show_ma=True, show_d1=True, show_mad1=True):
     """Plot kudos over time."""
     # Load dataframe
     df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
@@ -182,14 +224,22 @@ def plot_kudos():
     tn = t.to_numpy() - t.to_numpy()[0]
     # Make a figure
     fig, kax = plt.subplots()
+    fig.set_size_inches((10, 10 * 9 / 16))
     kax: matplotlib.axes.Axes = kax
     # Plot the data
-    (kuline,) = kax.plot(tn, ku, "b", label="Kudos")
-    (maline,) = kax.plot(tn, ma, "r", label="Kudos (Moving Average)")
-    dkax = kax.twinx()  # instantiate a second Axes that shares the same x-axis
+    handles = []
+    handles.append(kax.plot(tn, ku, "b", label="Kudos")[0])
+    if show_ma:
+        handles.append(kax.plot(tn, ma, "r", label="Kudos (Moving Average)")[0])
 
-    (d1line,) = dkax.plot(tn, d1, "g", label="Kudo Difference (1st)")
-    (mad1line,) = dkax.plot(tn, mad1, "y", label="Kudo Difference (M.A.')")
+    if show_d1 or show_mad1:
+        dkax = kax.twinx()  # instantiate a second Axes that shares the same x-axis
+        if show_d1:
+            handles.append(dkax.plot(tn, d1, "g", label="Kudos 1st difference")[0])
+        if show_mad1:
+            handles.append(
+                dkax.plot(tn, mad1, "y", label="Kudo 1st difference (M.A.)")[0]
+            )
 
     # Set labels, etc
     kax.set(
@@ -200,7 +250,8 @@ def plot_kudos():
     kax.set_ylabel("Kudos")
     dkax.tick_params(axis="y")
     dkax.set_ylabel("d/dx Kudos")
-    kax.legend(handles=[kuline, maline, d1line, mad1line])
+
+    kax.legend(handles=handles)
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
     # Turn on grid
@@ -208,6 +259,10 @@ def plot_kudos():
     # Save and close figure
     fig.savefig("out.png")
     plt.close(fig)
+
+
+def enabled_disabled(s):
+    return "Enabled" if s else "Disabled"
 
 
 def main():
@@ -228,13 +283,17 @@ def main():
     setup_backup_dir()
     create_output_file()
     backup_output_file()
+    SHOW_MA, SHOW_D1, SHOW_MAD1 = get_plot_params()
+    logger.info("Moving average : " + enabled_disabled(SHOW_MA))
+    logger.info("First difference : " + enabled_disabled(SHOW_D1))
+    logger.info("M.a. F.d. : " + enabled_disabled(SHOW_MAD1))
 
     while True:
         try:
             kudos = fetch_kudos(api_key)
             log_kudos(kudos)
             update_secondary_stats()
-            plot_kudos()
+            plot_kudos(SHOW_MA, SHOW_D1, SHOW_MAD1)
         except KeyboardInterrupt:
             logger.info("Removing lockfile during processing, then exiting.")
             doexit(1)
