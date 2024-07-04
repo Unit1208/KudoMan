@@ -17,9 +17,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import datetime
+import matplotlib.axes
 import requests
 import time
 import matplotlib.pyplot as plt
+import matplotlib
 import pandas as pd
 import os
 from pathlib import Path
@@ -151,6 +153,17 @@ def log_kudos(kudos):
         logger.info(f"{int(kudos)} Kudos")
 
 
+def update_secondary_stats():
+    df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
+    # Average over 2 days (24 hours * 60 minutes * 2 days)
+    df["MA"] = df["Kudos"].rolling(window=24 * 60 * 2, min_periods=0).mean()
+    df["D1"] = df["Kudos"].diff()
+    # Average over 15 minutes
+    df["MAD1"] = df["D1"].rolling(window=15, min_periods=0).mean()
+
+    df.to_csv(OUTPUT_FILE, index=False)
+
+
 def plot_kudos():
     """Plot kudos over time."""
     # Load dataframe
@@ -158,20 +171,36 @@ def plot_kudos():
     # Get time and Kudos
     t = df["Time"]
     ku = df["Kudos"]
+    ma = df["MA"]
+    d1 = df["D1"]
+    mad1 = df["MAD1"]
     # Calculate the time as being relative to the first measurement
     tn = t.to_numpy() - t.to_numpy()[0]
     # Make a figure
-    fig, ax = plt.subplots()
+    fig, kax = plt.subplots()
+    kax: matplotlib.axes.Axes = kax
     # Plot the data
-    ax.plot(tn, ku)
+    (kuline,) = kax.plot(tn, ku, "b", label="Kudos")
+    (maline,) = kax.plot(tn, ma, "r", label="Kudos (Moving Average)")
+    dkax = kax.twinx()  # instantiate a second Axes that shares the same x-axis
+
+    (d1line,) = dkax.plot(tn, d1, "g", label="Kudo Difference (1st)")
+    (mad1line,) = dkax.plot(tn, mad1, "y", label="Kudo Difference (M.A.')")
+
     # Set labels, etc
-    ax.set(
+    kax.set(
         xlabel="Time (Unix seconds)",
-        ylabel="Kudos",
-        title=f"Kudos plot ({int(ku.iloc[-1])}@{int(time.time())})",
+        title=f"Kudos plot",
     )
+    kax.tick_params(axis="y")
+    kax.set_ylabel("Kudos")
+    dkax.tick_params(axis="y")
+    dkax.set_ylabel("d/dx Kudos")
+    kax.legend(handles=[kuline, maline, d1line, mad1line])
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
     # Turn on grid
-    ax.grid()
+    kax.grid()
     # Save and close figure
     fig.savefig("out.png")
     plt.close(fig)
@@ -189,6 +218,7 @@ def main():
         try:
             kudos = fetch_kudos(api_key)
             log_kudos(kudos)
+            update_secondary_stats()
             plot_kudos()
         except KeyboardInterrupt:
             logger.info("Removing lockfile during processing, then exiting.")
