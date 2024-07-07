@@ -1,6 +1,6 @@
 # KudoMan
 [GPL-3.0-or-later](LICENSE)  
-KudoMan is a script designed to fetch, log, and visualize Kudos from the [Stable Horde API](https://aihorde.net/).
+KudoMan is a script designed to fetch, log, and visualize Kudos from the [Stable Horde API](https://aihorde.net/) over time.
 
 
 > [!WARNING]

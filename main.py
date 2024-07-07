@@ -175,7 +175,7 @@ def is_truthy(v: str):
 
 def warn_wrong_value(key: str, desc: str, value: str, default: str):
     logger.warning(
-        f"{desc} ({key}) key is of unknown truthyness ({value}). Please use True or False. Defaulting to {default}"
+        f"{desc} ({key}) key is of unknown truthiness ({value}). Please use True or False. Defaulting to {default}"
     )
 
 
