@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 3. **Set up the environment file:**
 
-Copy `.env.example` to `.env` and set your `API_KEY`. All other parameters are optional.
+Copy `.env.example` to `.env` and set your `API_KEY`. All other options are optional.
 
 ## Usage
 

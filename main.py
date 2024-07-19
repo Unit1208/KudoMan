@@ -43,6 +43,9 @@ class Config(BaseSettings):
     SHOWMA: bool = Field(default=True, env="SHOWMA")
     SHOWD1: bool = Field(default=True, env="SHOWD1")
     SHOWMAD1: bool = Field(default=True, env="SHOWMAD1")
+    NUMBACKUPS: int = Field(default=10, env="NUMBACKUPS")
+    # Default to averaging over 2 days (24 hours * 60 minutes * 2 days)
+    MAWINDOW: int = Field(default=24 * 60 * 2, env="MAWINDOW")
 
     @field_validator("REQTIME")
     def check_reqtime(cls, v):
@@ -132,9 +135,9 @@ def setup_backup_dir():
         BACKUP_DIR.iterdir(), key=lambda x: x.stat().st_ctime, reverse=True
     )
 
-    # Keep only the 10 most recent backups
-    if len(backups) > 10:
-        for old_backup in backups[10:]:
+    # Keep only the most recent backups
+    if len(backups) > config.NUMBACKUPS:
+        for old_backup in backups[config.NUMBACKUPS :]:
             logger.info(f"Removing old backup: {old_backup}")
             old_backup.unlink()
 
@@ -173,8 +176,7 @@ def log_kudos(kudos):
 
 def update_secondary_stats():
     df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
-    # Average over 2 days (24 hours * 60 minutes * 2 days)
-    df["MA"] = df["Kudos"].rolling(window=24 * 60 * 2, min_periods=0).mean()
+    df["MA"] = df["Kudos"].rolling(window=config.MAWINDOW, min_periods=0).mean()
     df["D1"] = df["Kudos"].diff()
     # Average over 15 minutes
     df["MAD1"] = df["D1"].rolling(window=15, min_periods=0).mean()
