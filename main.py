@@ -191,14 +191,22 @@ def log_kudos(kudos):
         logger.info(f"{int(kudos)} Kudos")
 
 
-def update_secondary_stats():
-    df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
-    df["MA"] = df["Kudos"].rolling(window=config.MAWINDOW, min_periods=0).mean()
-    df["D1"] = df["Kudos"].diff()
-    # Average over 15 minutes
-    df["MAD1"] = df["D1"].rolling(window=15, min_periods=0).mean()
-    df.to_csv(OUTPUT_FILE, index=False)
+def read_output_file_in_chunks(chunk_size=10000):
+    """Read the output file in chunks to handle large datasets efficiently."""
+    return pd.read_csv(OUTPUT_FILE, chunksize=chunk_size, skipinitialspace=True)
 
+
+def update_secondary_stats():
+    """Update secondary stats efficiently by processing data in chunks."""
+    df_chunks = read_output_file_in_chunks()
+    results = []
+    for chunk in df_chunks:
+        chunk["MA"] = chunk["Kudos"].rolling(window=config.MAWINDOW, min_periods=0).mean()
+        chunk["D1"] = chunk["Kudos"].diff()
+        chunk["MAD1"] = chunk["D1"].rolling(window=15, min_periods=0).mean()
+        results.append(chunk)
+    final_df = pd.concat(results, ignore_index=True)
+    final_df.to_csv(OUTPUT_FILE, index=False)
 
 def plot_kudos():
     """Plot kudos over time."""
