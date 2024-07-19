@@ -1,2 +1,3 @@
-[ ] handle missing user gracefully
-[ ] Handle shared keys?
+- [x] handle missing user gracefully
+- [ ] Handle shared keys?
+- [ ] More efficient handling of large datasets

@@ -59,10 +59,11 @@ class Config(BaseSettings):
     @field_validator("API_KEY")
     def check_apikey(cls, v):
         if v == None:
-            logger.error("User must supply their API key in .env. e.g. API_KEY=foo")
-            doexit(3)
+            logging.error("User must supply their API key in .env. e.g. API_KEY=foo")
+            doexit()
         if v.lower() == "foo":
-            logger.error("User must set their API key. `foo` is not a valid API_KEY.")
+            logging.error("User must set their API key. `foo` is not a valid API_KEY.")
+            doexit()
         return v
 
 
@@ -121,7 +122,7 @@ def setup_lockfile():
             logger.info(
                 f"KudoMan is running on PID {values[0]}, started at {datetime.datetime.fromtimestamp(float(values[1])).isoformat()}"
             )
-            doexit(2)
+            doexit()
     pid = os.getpid()
     start_time = time.time()
     with open(LOCKFILE, "wt") as f:
@@ -157,6 +158,20 @@ def backup_output_file():
     backup_file = BACKUP_DIR / f"out-{int(time.time())}.csv.gz"
     with gzip.GzipFile(backup_file, "wb") as o, OUTPUT_FILE.open("rt") as i:
         o.write(i.read().encode("utf-8"))
+
+
+def check_user(api_key):
+    response = requests.get(
+        "https://aihorde.net/api/v2/find_user", headers={"apikey": api_key}
+    )
+    if response.status_code == 404:
+        logger.error(
+            "User not found. Are you sure you entered the correct `API_KEY` into `.env`?"
+        )
+        doexit()
+
+    response.raise_for_status()
+    return True
 
 
 def fetch_kudos(api_key):
@@ -243,6 +258,8 @@ def enabled_disabled(s):
 def main():
     """Main function to run the script."""
     setup_lockfile()
+    check_user(config.API_KEY)
+
     TIME = config.REQTIME
     logger.info(f"Fetching every {TIME} seconds")
     logger.info(f"Keeping {config.NUMBACKUPS} backups")
@@ -253,6 +270,7 @@ def main():
     logger.info("Moving average : " + enabled_disabled(config.SHOWMA))
     logger.info("First difference : " + enabled_disabled(config.SHOWD1))
     logger.info("M.a. F.d. : " + enabled_disabled(config.SHOWMAD1))
+
     while True:
         try:
             kudos = fetch_kudos(config.API_KEY)
@@ -261,16 +279,16 @@ def main():
             plot_kudos()
         except KeyboardInterrupt:
             logger.info("Removing lockfile during processing, then exiting.")
-            doexit(1)
+            doexit()
         except requests.RequestException as e:
             logger.warning(f"Exception caught: {e}")
         except Exception as e:
-            logger.warning(f"Unexpected exception: {e}")
+            logger.error(f"Unexpected exception: {e}")
         try:
             time.sleep(TIME)
         except KeyboardInterrupt:
             logger.info("Removing lockfile during delay, then exiting")
-            doexit(1)
+            doexit()
 
 
 if __name__ == "__main__":
