@@ -47,13 +47,31 @@ class Config(BaseSettings):
     # Default to averaging over 2 days (24 hours * 60 minutes * 2 days) for a REQTIME of 60s
     MAWINDOW: int = Field(default=24 * 60 * 2, env="MAWINDOW")
 
+    @field_validator("LOGLEVEL")
+    def check_loglevel(cls, v):
+        levels = list(logging.getLevelNamesMapping().keys())
+        if v in levels:
+            return v
+        else:
+            logging.error(
+                f"Logging level \"{v}\" is not supported. Must be one of {levels}. defaulting to 'INFO'"
+            )
+            return "INFO"
+
     @field_validator("REQTIME")
     def check_reqtime(cls, v):
         if v < 30:
             logging.warning(
-                "Time is < 30 seconds. This is a waste of server resources; kudos will not be updated this fast. Interval will be clamped to a minimum of 30 seconds."
+                "REQTIME is < 30 seconds. This is a waste of server resources; kudos will not be updated this fast. Interval will be clamped to a minimum of 30 seconds."
             )
             return 30
+        return v
+
+    @field_validator("NUMBACKUPS")
+    def check_backups_num(cls, v):
+        if v < 0:
+            logging.warning("NUMBACKUPS is less than zero. Defaulting to 10.")
+            return 10
         return v
 
     @field_validator("API_KEY")
@@ -80,11 +98,13 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=config.LOGLEVEL, logger=logger)
 
 
-# Cross-platform path handling
+# Define constant paths. *Maybe* it would be good to allow these to be configurable, but I don't see any real reason to. If someone was that fervent on their desire to move the output location, they could do a find and replace.
+
 LOCKFILE = Path.cwd() / ".kudolock"
 BACKUP_DIR = Path.cwd() / "bak.d"
 OUTPUT_FILE = Path.cwd() / "out.csv"
 ENV_FILE = Path.cwd() / ".env"
+OUT_IMAGE_FILE = Path.cwd() / "out.png"
 
 
 def doexit(code=1):
@@ -264,7 +284,7 @@ def plot_kudos():
     # Turn on grid
     kax.grid()
     # Save and close figure
-    fig.savefig("out.png")
+    fig.savefig(OUT_IMAGE_FILE)
     plt.close(fig)
 
 
