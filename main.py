@@ -59,16 +59,22 @@ class Config(BaseSettings):
     @field_validator("API_KEY")
     def check_apikey(cls, v):
         if v == None:
-            logging.error("User must supply their API key in .env. e.g. API_KEY=foo")
-            doexit()
+            raise ValueError("User must supply their API key in .env. e.g. API_KEY=foo")
         if v.lower() == "foo":
-            logging.error("User must set their API key. `foo` is not a valid API_KEY.")
-            doexit()
+            raise ValueError(
+                "User must set their API key. `foo` is not a valid API_KEY."
+            )
         return v
 
 
-config = Config()
-
+try:
+    config = Config()
+except Exception as e:
+    err_logger = logging.getLogger(__name__)
+    coloredlogs.install(level="INFO", logger=err_logger)
+    err_logger.error(e)
+    # It's okay to just exit at this point instead of doexit. The lockfile has neither been checked or deleted. We should probably preserve it rather than trying too hard to check it.
+    exit()
 # Setup logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=config.LOGLEVEL, logger=logger)
@@ -201,12 +207,15 @@ def update_secondary_stats():
     df_chunks = read_output_file_in_chunks()
     results = []
     for chunk in df_chunks:
-        chunk["MA"] = chunk["Kudos"].rolling(window=config.MAWINDOW, min_periods=0).mean()
+        chunk["MA"] = (
+            chunk["Kudos"].rolling(window=config.MAWINDOW, min_periods=0).mean()
+        )
         chunk["D1"] = chunk["Kudos"].diff()
         chunk["MAD1"] = chunk["D1"].rolling(window=15, min_periods=0).mean()
         results.append(chunk)
     final_df = pd.concat(results, ignore_index=True)
     final_df.to_csv(OUTPUT_FILE, index=False)
+
 
 def plot_kudos():
     """Plot kudos over time."""
