@@ -38,22 +38,31 @@ dotenv.load_dotenv()
 
 class Config(BaseSettings):
     LOGLEVEL: str = Field(default="INFO", env="LOGLEVEL")
-    API_KEY: str = Field(default="foo", env="API_KEY")
+    API_KEY: str = Field(env="API_KEY")
     REQTIME: int = Field(default=60, env="REQTIME")
     SHOWMA: bool = Field(default=True, env="SHOWMA")
     SHOWD1: bool = Field(default=True, env="SHOWD1")
     SHOWMAD1: bool = Field(default=True, env="SHOWMAD1")
     NUMBACKUPS: int = Field(default=10, env="NUMBACKUPS")
-    # Default to averaging over 2 days (24 hours * 60 minutes * 2 days)
+    # Default to averaging over 2 days (24 hours * 60 minutes * 2 days) for a REQTIME of 60s
     MAWINDOW: int = Field(default=24 * 60 * 2, env="MAWINDOW")
 
     @field_validator("REQTIME")
     def check_reqtime(cls, v):
         if v < 30:
             logging.warning(
-                "Time is < 30 seconds. This is a waste of server resources, kudos will not be updated this fast. Time will be clamped to a minimum of 30 seconds."
+                "Time is < 30 seconds. This is a waste of server resources; kudos will not be updated this fast. Interval will be clamped to a minimum of 30 seconds."
             )
             return 30
+        return v
+
+    @field_validator("API_KEY")
+    def check_apikey(cls, v):
+        if v == None:
+            logger.error("User must supply their API key in .env. e.g. API_KEY=foo")
+            doexit(3)
+        if v.lower() == "foo":
+            logger.error("User must set their API key. `foo` is not a valid API_KEY.")
         return v
 
 
@@ -82,17 +91,19 @@ def is_lockfile_stale():
     with open(LOCKFILE, "r") as f:
         llock = f.read().split(",")
         lstart = float(llock[1])
-        lpid = float(llock[0])
+        lpid = int(llock[0])
 
     # If we've rebooted since the lockfile was created, it's probably a stale lockfile.
     rebooted = psutil.boot_time() < (time.time() - lstart)
     if rebooted:
         return True
-
-    lproc = psutil.Process(lpid)
-    if lproc.is_running():
-        # if it's running in a different directory than the current one, it's probably not this program. This isn't perfect, but it might help.
-        return not (Path.cwd()).resolve().samefile(lproc.cwd())
+    try:
+        lproc = psutil.Process(lpid)
+        if lproc.is_running():
+            # if it's running in a different directory than the current one, it's probably not this program. This isn't perfect, but it might help.
+            return not (Path.cwd()).resolve().samefile(lproc.cwd())
+    except psutil.NoSuchProcess:
+        return True
     return False
 
 
@@ -115,15 +126,6 @@ def setup_lockfile():
     start_time = time.time()
     with open(LOCKFILE, "wt") as f:
         f.write(f"{pid},{start_time}")
-
-
-def load_api_key():
-    """Load the API key from the configuration."""
-    api_key = config.API_KEY
-    if not api_key or api_key.lower() == "foo":
-        logger.error("User must supply their API key in .env. e.g. API_KEY=foo")
-        doexit(3)
-    return api_key
 
 
 def setup_backup_dir():
@@ -183,7 +185,7 @@ def update_secondary_stats():
     df.to_csv(OUTPUT_FILE, index=False)
 
 
-def plot_kudos(show_ma=True, show_d1=True, show_mad1=True):
+def plot_kudos():
     """Plot kudos over time."""
     # Load dataframe
     df = pd.read_csv(OUTPUT_FILE, skipinitialspace=True)
@@ -202,14 +204,14 @@ def plot_kudos(show_ma=True, show_d1=True, show_mad1=True):
     # Plot the data
     handles = []
     handles.append(kax.plot(tn, ku, "b", label="Kudos")[0])
-    if show_ma:
+    if config.SHOWMA:
         handles.append(kax.plot(tn, ma, "r", label="Kudos (Moving Average)")[0])
 
-    if show_d1 or show_mad1:
+    if config.SHOWD1 or config.SHOWMAD1:
         dkax = kax.twinx()  # instantiate a second Axes that shares the same x-axis
-        if show_d1:
+        if config.SHOWD1:
             handles.append(dkax.plot(tn, d1, "g", label="Kudos 1st difference")[0])
-        if show_mad1:
+        if config.SHOWMAD1:
             handles.append(
                 dkax.plot(tn, mad1, "y", label="Kudo 1st difference (M.A.)")[0]
             )
@@ -242,26 +244,21 @@ def main():
     """Main function to run the script."""
     setup_lockfile()
     TIME = config.REQTIME
-    # fast and lazy random numbers. Not good, mind you. But good enough. Plus, it avoids having to pull in random just for a joke.
-    if TIME < 0 and int(time.time() * 3252 + 6294) % 6 == 0:
-        logger.info(f"How do you expect the kudos to update every {TIME} seconds?")
     logger.info(f"Fetching every {TIME} seconds")
-
-    api_key = load_api_key()
+    logger.info(f"Keeping {config.NUMBACKUPS} backups")
+    logger.info(f"Moving average window of {config.MAWINDOW} samples")
     setup_backup_dir()
     create_output_file()
     backup_output_file()
-    SHOW_MA, SHOW_D1, SHOW_MAD1 = config.SHOWMA, config.SHOWD1, config.SHOWMAD1
-    logger.info("Moving average : " + enabled_disabled(SHOW_MA))
-    logger.info("First difference : " + enabled_disabled(SHOW_D1))
-    logger.info("M.a. F.d. : " + enabled_disabled(SHOW_MAD1))
-
+    logger.info("Moving average : " + enabled_disabled(config.SHOWMA))
+    logger.info("First difference : " + enabled_disabled(config.SHOWD1))
+    logger.info("M.a. F.d. : " + enabled_disabled(config.SHOWMAD1))
     while True:
         try:
-            kudos = fetch_kudos(api_key)
+            kudos = fetch_kudos(config.API_KEY)
             log_kudos(kudos)
             update_secondary_stats()
-            plot_kudos(SHOW_MA, SHOW_D1, SHOW_MAD1)
+            plot_kudos()
         except KeyboardInterrupt:
             logger.info("Removing lockfile during processing, then exiting.")
             doexit(1)
