@@ -5,3 +5,5 @@ python-dotenv
 psutil
 coloredlogs
 colorama
+pydantic
+pydantic-settings

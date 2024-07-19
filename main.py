@@ -30,15 +30,35 @@ import logging
 import psutil
 import coloredlogs
 import gzip
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
 
 dotenv.load_dotenv()
 
-LOGLEVEL = os.getenv("LOGLEVEL", "INFO")
 
+class Config(BaseSettings):
+    LOGLEVEL: str = Field(default="INFO", env="LOGLEVEL")
+    API_KEY: str = Field(default="foo", env="API_KEY")
+    REQTIME: int = Field(default=60, env="REQTIME")
+    SHOWMA: bool = Field(default=True, env="SHOWMA")
+    SHOWD1: bool = Field(default=True, env="SHOWD1")
+    SHOWMAD1: bool = Field(default=True, env="SHOWMAD1")
+
+    @field_validator("REQTIME")
+    def check_reqtime(cls, v):
+        if v < 30:
+            logging.warning(
+                "Time is < 30 seconds. This is a waste of server resources, kudos will not be updated this fast. Time will be clamped to a minimum of 30 seconds."
+            )
+            return 30
+        return v
+
+
+config = Config()
 
 # Setup logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level=LOGLEVEL, logger=logger)
+coloredlogs.install(level=config.LOGLEVEL, logger=logger)
 
 
 # Cross-platform path handling
@@ -68,7 +88,7 @@ def is_lockfile_stale():
 
     lproc = psutil.Process(lpid)
     if lproc.is_running():
-        # if it's runnning in a different directory than the current one, it's probably not this program. This isn't perfect, but it might help.
+        # if it's running in a different directory than the current one, it's probably not this program. This isn't perfect, but it might help.
         return not (Path.cwd()).resolve().samefile(lproc.cwd())
     return False
 
@@ -95,16 +115,10 @@ def setup_lockfile():
 
 
 def load_api_key():
-    """Load the API key from the environment file."""
-    api_key = os.getenv("API_KEY")
-    if not api_key:
-        if not ENV_FILE.exists():
-            with open(ENV_FILE, "wt") as f:
-                f.write("API_KEY=foo")
+    """Load the API key from the configuration."""
+    api_key = config.API_KEY
+    if not api_key or api_key.lower() == "foo":
         logger.error("User must supply their API key in .env. e.g. API_KEY=foo")
-        doexit(3)
-    if api_key.lower() == "foo":
-        logger.error("Make sure to set your API key in .env.")
         doexit(3)
     return api_key
 
@@ -155,49 +169,6 @@ def log_kudos(kudos):
         timestamp = time.time()
         f.write(f"{timestamp:.2f},{int(kudos)}\n")
         logger.info(f"{int(kudos)} Kudos")
-
-
-def is_truthy(v: str):
-    """Return if a string probably represents a truthy value"""
-    lst = v.lower()
-    if lst == "false":
-        return False
-    if lst == "true":
-        return True
-    lst0 = lst[0]
-    if lst0 in ["y", "t", "1"]:
-        return True
-    if lst0 in ["n", "f", "0"]:
-        return False
-
-    return -1
-
-
-def warn_wrong_value(key: str, desc: str, value: str, default: str):
-    logger.warning(
-        f"{desc} ({key}) key is of unknown truthiness ({value}). Please use True or False. Defaulting to {default}"
-    )
-
-
-def get_plot_params():
-    SHOW_MA = os.getenv("SHOWMA", "True")
-    SHOW_D1 = os.getenv("SHOWD1", "True")
-    SHOW_MAD1 = os.getenv("SHOWMAD1", "True")
-    SHOW_MAT = is_truthy(SHOW_MA)
-    if SHOW_MAT == -1:
-        warn_wrong_value("Show moving average", "SHOWMA", SHOW_MA, "True")
-        return True
-    SHOW_D1T = is_truthy(SHOW_D1)
-    if SHOW_D1T == -1:
-        warn_wrong_value("Show first difference", "SHOWD1", SHOW_D1, "True")
-        SHOW_D1T = True
-    SHOW_MAD1T = is_truthy(SHOW_MAD1)
-    if SHOW_MAD1T == -1:
-        warn_wrong_value(
-            "Show moving average first difference", "SHOWMAD1", SHOW_MAD1, "True"
-        )
-        SHOW_MAD1T = True
-    return SHOW_MAT, SHOW_D1T, SHOW_MAD1T
 
 
 def update_secondary_stats():
@@ -268,22 +239,17 @@ def enabled_disabled(s):
 def main():
     """Main function to run the script."""
     setup_lockfile()
-    TIME = int(os.getenv("REQTIME", "60"))
+    TIME = config.REQTIME
     # fast and lazy random numbers. Not good, mind you. But good enough. Plus, it avoids having to pull in random just for a joke.
     if TIME < 0 and int(time.time() * 3252 + 6294) % 6 == 0:
         logger.info(f"How do you expect the kudos to update every {TIME} seconds?")
-    if TIME < 30:
-        logger.warning(
-            "Time is < 30 seconds. This is a waste of server resources, kudos will not be updated this fast. Time will be clamped to a minimum of 30 seconds."
-        )
-        TIME = 30
     logger.info(f"Fetching every {TIME} seconds")
 
     api_key = load_api_key()
     setup_backup_dir()
     create_output_file()
     backup_output_file()
-    SHOW_MA, SHOW_D1, SHOW_MAD1 = get_plot_params()
+    SHOW_MA, SHOW_D1, SHOW_MAD1 = config.SHOWMA, config.SHOWD1, config.SHOWMAD1
     logger.info("Moving average : " + enabled_disabled(SHOW_MA))
     logger.info("First difference : " + enabled_disabled(SHOW_D1))
     logger.info("M.a. F.d. : " + enabled_disabled(SHOW_MAD1))
