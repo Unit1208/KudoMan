@@ -37,15 +37,15 @@ dotenv.load_dotenv()
 
 
 class Config(BaseSettings):
-    LOGLEVEL: str = Field(default="INFO", env="LOGLEVEL")
-    API_KEY: str = Field(env="API_KEY")
-    REQTIME: int = Field(default=60, env="REQTIME")
-    SHOWMA: bool = Field(default=True, env="SHOWMA")
-    SHOWD1: bool = Field(default=True, env="SHOWD1")
-    SHOWMAD1: bool = Field(default=True, env="SHOWMAD1")
-    NUMBACKUPS: int = Field(default=10, env="NUMBACKUPS")
+    LOGLEVEL: str = Field(default="INFO")
+    API_KEY: str = Field()
+    REQTIME: int = Field(default=60)
+    SHOWMA: bool = Field(default=True)
+    SHOWD1: bool = Field(default=True)
+    SHOWMAD1: bool = Field(default=True)
+    NUMBACKUPS: int = Field(default=10)
     # Default to averaging over 2 days (24 hours * 60 minutes * 2 days) for a REQTIME of 60s
-    MAWINDOW: int = Field(default=24 * 60 * 2, env="MAWINDOW")
+    MAWINDOW: int = Field(default=24 * 60 * 2)
 
     @field_validator("LOGLEVEL")
     def check_loglevel(cls, v):
@@ -76,7 +76,7 @@ class Config(BaseSettings):
 
     @field_validator("API_KEY")
     def check_apikey(cls, v):
-        if v == None:
+        if v is None:
             raise ValueError("User must supply their API key in .env. e.g. API_KEY=foo")
         if v.lower() == "foo":
             raise ValueError(
@@ -96,7 +96,6 @@ except Exception as e:
 # Setup logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=config.LOGLEVEL, logger=logger)
-
 
 # Define constant paths. *Maybe* it would be good to allow these to be configurable, but I don't see any real reason to. If someone was that fervent on their desire to move the output location, they could do a find and replace.
 
@@ -254,29 +253,27 @@ def plot_kudos():
     fig.set_size_inches((10, 10 * 9 / 16))
     kax: matplotlib.axes.Axes = kax
     # Plot the data
-    handles = []
-    handles.append(kax.plot(tn, ku, "b", label="Kudos")[0])
+    handles = [kax.plot(tn, ku, "b", label="Kudos")[0]]
     if config.SHOWMA:
         handles.append(kax.plot(tn, ma, "r", label="Kudos (Moving Average)")[0])
 
-    if config.SHOWD1 or config.SHOWMAD1:
-        dkax = kax.twinx()  # instantiate a second Axes that shares the same x-axis
-        if config.SHOWD1:
-            handles.append(dkax.plot(tn, d1, "g", label="Kudos 1st difference")[0])
-        if config.SHOWMAD1:
-            handles.append(
-                dkax.plot(tn, mad1, "y", label="Kudo 1st difference (M.A.)")[0]
-            )
+    dkax = kax.twinx() if config.SHOWD1 or config.SHOWMAD1 else None
+    if config.SHOWD1:
+        handles.append(dkax.plot(tn, d1, "g--", label="Kudos 1st difference")[0])
+    if config.SHOWMAD1:
+        handles.append(
+            dkax.plot(tn, mad1, "y--", label="Kudo 1st difference (M.A.)")[0]
+        )
 
-    # Set labels, etc
     kax.set(
         xlabel="Time (Unix seconds)",
         title=f"Kudos plot",
     )
     kax.tick_params(axis="y")
     kax.set_ylabel("Kudos")
-    dkax.tick_params(axis="y")
-    dkax.set_ylabel("d/dx Kudos")
+    if dkax is not None:
+        dkax.tick_params(axis="y")
+        dkax.set_ylabel("\u0394Kudos/\u0394Time")
 
     kax.legend(handles=handles)
     fig.tight_layout()  # otherwise the right y-label is slightly clipped

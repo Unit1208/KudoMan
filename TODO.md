@@ -1,3 +1,4 @@
 - [x] handle missing user gracefully
 - [ ] Handle shared keys?
 - [x] More efficient handling of large datasets
+- [ ] Actually use ENV_FILE in order to copy example in code.
