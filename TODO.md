@@ -2,3 +2,4 @@
 - [ ] Handle shared keys?
 - [x] More efficient handling of large datasets
 - [ ] Actually use ENV_FILE in order to copy example in code.
+- [ ] Only actually update plot after a major(what is major?) change to the plot
